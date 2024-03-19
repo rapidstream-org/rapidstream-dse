@@ -1,6 +1,6 @@
 <!--
 Copyright (c) 2024 RapidStream Design Automation, Inc. and contributors.  All rights reserved.
-The contributor of this file has agreed to the RapidStream Contributor License Agreement.
+The contributor(s) of this file has/have agreed to the RapidStream Contributor License Agreement.
 -->
 
 RapidStream DSE Engine
