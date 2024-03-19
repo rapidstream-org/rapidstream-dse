@@ -1,3 +1,8 @@
+<!--
+Copyright (c) 2024 RapidStream Design Automation, Inc. and contributors.  All rights reserved.
+The contributor of this file has agreed to the RapidStream Contributor License Agreement.
+-->
+
 RapidStream DSE Engine
 ======================
 
@@ -6,6 +11,36 @@ Purpose
 
 This project analyzes the placement and routing results from the EDA tools, and uses them as feedback to adjust the partition-and-pipeline parameters of the RapidStream software.
 
+Requirements
+------------
+
+- `Python3`: 3.10 or later.
+- `poetry`: to manage virtual environment and dependencies.
+
+Installation
+------------
+
+```bash
+curl -fsSL https://install.python-poetry.org/ | python3.10 -
+poetry install --with=dev
+```
+
+Before Committing
+-----------------
+
+All tests and pre-commit checks shall pass before committing to the main repository.
+
+Before your first commit, you must install pre-commit for Git:
+
+```bash
+poetry run pre-commit install
+```
+
+To invoke `pre-commit` without committing the changes:
+
+```bash
+poetry run pre-commit
+```
 
 License
 -------
@@ -20,7 +55,7 @@ The RapidStream DSE Engine is an open source project managed by RapidStream Desi
 Contributor License Agreement (CLA)
 -----------------------------------
 
-By contributing to this open-source repository, you agree to the RapidStream Contributor License Agreement. 
+By contributing to this open-source repository, you agree to the RapidStream Contributor License Agreement.
 
 Under this agreement, you grant to RapidStream Design Automation, Inc. and to recipients of software distributed by RapidStream a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions and such derivative works. You also grant to RapidStream Design Automation, Inc. and to recipients of software distributed by RapidStream a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the work,
 
