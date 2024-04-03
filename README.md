@@ -3,13 +3,20 @@ Copyright (c) 2024 RapidStream Design Automation, Inc. and contributors.  All ri
 The contributor(s) of this file has/have agreed to the RapidStream Contributor License Agreement.
 -->
 
+<img src="https://imagedelivery.net/AU8IzMTGgpVmEBfwPILIgw/1b565657-df33-41f9-f29e-0d539743e700/128" width="64px" alt="RapidStream Logo" />
+
+
 RapidStream DSE Engine
 ======================
 
-Purpose
--------
+The RapidStream DSE Engine analyzes the placement and routing results from the EDA tools, and uses them as feedback to adjust the partition-and-pipeline parameters of the RapidStream software.
 
-This project analyzes the placement and routing results from the EDA tools, and uses them as feedback to adjust the partition-and-pipeline parameters of the RapidStream software.
+
+Composing Large-Scale FPGA-Based Systems
+----------------------------------------
+
+[RapidStream](https://rapidstream-da.com/) is a streamlined development flow for modern FPGAs, designed to help users quickly create high-performance systems. By working alongside FPGA vendor tools, RapidStream allows for the easy integration of small building blocks into complex, high-frequency designs. Users can take advantage of RapidStream's Python-based scripting language to efficiently implement high-performance FPGA accelerators using software-defined flows.
+
 
 Requirements
 ------------
@@ -17,13 +24,21 @@ Requirements
 - `Python3`: 3.10 or later.
 - `poetry`: to manage virtual environment and dependencies.
 
+You must have RapidStream installed, a valid RapidStream license, and a valid Vivado Design Suite license to download or run the RapidStream DSE Engine. If you are an academic researcher or would like to contribute to this project, please contact us at https://rapidstream-da.com/ for a free RapidStream license.
+
+The default branch always matches the latest RapidStream release. Please update your software before using the DSE engine.
+
+
 Installation
 ------------
 
 ```bash
+git clone https://github.com/rapidstream-org/rapidstream-dse.git
+cd rapidstream-dse
 curl -fsSL https://install.python-poetry.org/ | python3.10 -
 poetry install --with=dev
 ```
+
 
 Before Committing
 -----------------
@@ -42,14 +57,15 @@ To invoke `pre-commit` without committing the changes:
 poetry run pre-commit
 ```
 
+
 License
 -------
 
 The RapidStream DSE Engine is an open source project managed by RapidStream Design Automation, Inc., who is authorized by the contributors to license the software under a dual licensing model:
 
-1. **Open-Source License (AGPL):** The RapidStream DSE Engine is available as free and open-source software under the GNU Affero General Public License (AGPL) version 3.0 or later. You can redistribute it and/or modify it under the terms of the AGPL. If you use this software to provide a network service, you must make the complete source code available to users under the AGPL.
+1. **Open-Source License (AGPL):** The RapidStream DSE Engine is available as free and open-source software under the GNU Affero General Public License (AGPL) version 3.0 or later. You can redistribute it and/or modify it under the terms of the AGPL. If you use this software, in whole or in part, in any form (including binary, linked, or as a network service), in your product or to provide a service, you must make your complete source code, including any modifications or additions, available to users under the terms of the AGPL. This requirement applies regardless of how the software is integrated or deployed, ensuring that the entire codebase remains open-source and accessible to the community.
 
-2. **Commercial License:** For RapidStream customers who prefer a closed-source, commercial license without the AGPL's requirements, RapidStream Design Automation, Inc. offers a separate commercial license. Please contact info@rapidstream-da.com for more information about obtaining a commercial license.
+2. **Commercial License:** For customers who prefer a closed-source, commercial license that allows them to use the RapidStream DSE Engine in their products without the open-source requirements of the AGPL, RapidStream Design Automation, Inc. offers a separate commercial license. This commercial license eliminates the AGPL's stipulations, such as the requirement to make the source code of your product available to users. If you are interested in obtaining a commercial license for RapidStream, please contact info@rapidstream-da.com for more information.
 
 
 Contributor License Agreement (CLA)
