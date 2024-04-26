@@ -177,7 +177,7 @@ public class CrossingPBlockNodeCounter {
             if (allPBlockDirectionToNodeCount.containsKey(col - 1) && allPBlockDirectionToNodeCount.get(col - 1).containsKey(row)) {
                 directionToNodeCount.put("W", allPBlockDirectionToNodeCount.get(col - 1).get(row).get("E"));
             } else {
-                System.err.println("South not found: col " + col + "; row " + row);
+                System.err.println("West not found: col " + col + "; row " + row);
                 String pWestName = getPBlockNameFromDirection(device, col, row, total_col, total_row, "W");
                 assert pblockMap.containsKey(pWestName) : "pWestName " + pWestName + " not found in pblockMap!";
                 PBlock pWest = pblockMap.get(pWestName);

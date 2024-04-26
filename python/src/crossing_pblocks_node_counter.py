@@ -24,7 +24,7 @@ def get_node_counts_between_pblocks(
     num_col: int,
     num_row: int,
 ) -> dict[int, dict[int, dict[Literal["N", "S", "E", "W"], int]]]:
-    """Extract number of wires between pblocks.
+    """Extract number of nodes between pblocks.
 
     Args:
         dcp_path: Path to a checkpoint file which contains a grid of pblocks.
@@ -34,11 +34,11 @@ def get_node_counts_between_pblocks(
         num_row: Number of rows of the pblock grid.
 
     Returns:
-        A mapping from (col, row) to direction to the number of wires. For
-        example, wire_count[0][0]["NORTH"] is the number of wires between
+        A mapping from (col, row) to direction to the number of nodes. For
+        example, node_count[0][0]["NORTH"] is the number of nodes between
         pblock (0, 0) and (0, 1).
 
-        wire_count[0][0] should not have "SOUTH" or "WEST" keys because those
+        node_count[0][0] should not have "SOUTH" or "WEST" keys because those
         slots do not exist.
     """
     node_count_java = CrossingPBlockNodeCounter.getAllPBlockCrossingNodeCount(
