@@ -112,6 +112,12 @@ public class PlacementMetricExtractor {
         return calculateUtilization(siteInsts);
     }
 
+
+    // For an Alveo U250 design, if we use `show_objects [get_pblocks <right half slrs like CR_X4Y12_To_CR_X7Y15>]`, and see the utilization in gui,
+    // we can see that gui statistics is smaller than the following calculation, this is because some
+    // site instances or cells belong to the memory subsystem (DDR controller) instead of the dynamic region of user logic.
+    // TODO: Hence, the correct way to use this calculation is to use the difference between total available sites/cells and the following calculation
+    //       as the budget for the next-step floorplan revision.
     public static Map<UtilizationType, Integer> calculateUtilization(Collection<SiteInst> siteInsts) {
         Map<UtilizationType, Integer> map = new HashMap<UtilizationType, Integer>();
 
@@ -123,8 +129,9 @@ public class PlacementMetricExtractor {
             if (Utils.isSLICE(si)) {    // done
                 incrementUtilType(map, UtilizationType.CLBS);
                 if (s == SiteTypeEnum.SLICEL) {
-                    // corresponding TCL: get_sites -of_objects [get_pblocks CR_X0Y12_To_CR_X3Y15] -filter { IS_USED == "TRUE" && SITE_TYPE == "SLICEL" }
-                    // ! Vivado failing to include one column (e.g., as tall as the height of a clock region in Alveo U250) of SLICELs beside the laguna column, reason unknown yet -- for example, `get_pblocks -of_objects [get_sites SLICE_X112Y741]` wouldn't show "CR_X0Y12_To_CR_X3Y15", which was created by "create_pblock CR_X0Y12_To_CR_X3Y15; resize_pblock CR_X0Y12_To_CR_X3Y15 -add CLOCKREGION_X0Y12:CLOCKREGION_X3Y15"
+                    // corresponding TCL: get_sites -of_objects [get_pblocks CR_X0Y12_To_CR_X3Y15] -filter { IS_USED == "TRUE" && SITE_TYPE == "SLICEL" }.
+                    // ? Vivado failing to include one column (e.g., as tall as the height of a clock region in Alveo U250) of SLICELs beside the laguna column, reason unknown yet -- for example, `get_pblocks -of_objects [get_sites SLICE_X112Y741]` wouldn't show "CR_X0Y12_To_CR_X3Y15", which was created by "create_pblock CR_X0Y12_To_CR_X3Y15; resize_pblock CR_X0Y12_To_CR_X3Y15 -add CLOCKREGION_X0Y12:CLOCKREGION_X3Y15"
+                        // ! Partially solved: https://github.com/Xilinx/RapidWright/issues/989
                     incrementUtilType(map, UtilizationType.CLBLS);
                     // System.out.println("mark_objects [get_sites " + si.getSite() + "]"); // debug
                 } else if (s == SiteTypeEnum.SLICEM) {
@@ -239,12 +246,14 @@ public class PlacementMetricExtractor {
                             nextIsRange = true;
                         } else if (nextIsRange) {
                             pblockRange = part.replace("{", "").replace("}", "").replace("]", "");
-                            if (pblockRange.matches("^(RAMB|DSP|URAM).*$")) // BRAM/DSP/URAM cascade not relavant
-                                continue;
+                            // if (pblockRange.matches("^(RAMB|DSP|URAM).*$")) // BRAM/DSP/URAM cascade not relavant
+                            //     continue;
                             pblock.add(new PBlockRange(device, pblockRange));
                         } else if (part.contains("-remove")) {
-                            // TODO: "resize_pblock [...] -remove {...}" not considered yet
+                            // TODO: "resize_pblock [...] -remove {...}" not considered yet.
+                            // ? It seems that all removes are converted to adds for the current design.
                             // System.out.println("WARNING: Not considered yet!");
+                            assert false : "resize_pblock [...] -remove {...} not considered yet!";
                             break;
                         }
                     }
@@ -256,16 +265,12 @@ public class PlacementMetricExtractor {
         return pblockMap;
     }
 
-    public static void getAllPBlockPlacementMetrics(String dcp, int total_col, int total_row) {
+    public static void getAllPBlockPlacementMetrics(String dcp) {
         Design design = null;
         Device device = null;
         try {
             design = Design.readCheckpoint(dcp);
             device = design.getDevice();
-            // Assume the atomic slot is at least clock-region-level, then they should not exceed CR#
-            assert total_col >= 0 && total_col < device.getNumOfClockRegionsColumns() : "Invalid column number";
-            assert total_row >= 0 && total_row < device.getNumOfClockRegionRows() : "Invalid row number";
-            System.out.println("Device: " + device + "; total_col(X): " + total_col + "; total_row(Y): " + total_row);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
@@ -275,7 +280,7 @@ public class PlacementMetricExtractor {
         Map<String, PBlock> pblockMap = getNameToPBlocksFromXDC(design);
         for (String pblockName : pblockMap.keySet()) {
             PBlock pblock = pblockMap.get(pblockName);
-            Map<UtilizationType, Integer> utilizationMap = calculateUtilization(design, pblock);
+            Map<UtilizationType, Integer> utilizationMap = calculateUtilization(design, pblock);    // or DesignTools.calculateUtilization(design, pblock);
             System.out.println("PBlock: " + pblockName + "; Utilization: " + utilizationMap);
             // break;
         }
@@ -283,10 +288,10 @@ public class PlacementMetricExtractor {
     }
 
     public static void main(String[] args) {
-        if(args.length != 3) {
-            System.out.println("USAGE: rapidwright MetricsExtractor <.dcp> <col (X)> <row (Y)>");
+        if(args.length != 1) {
+            System.out.println("USAGE: rapidwright MetricsExtractor <.dcp>");
             return;
         }
-        getAllPBlockPlacementMetrics(args[0], Integer.parseInt(args[1]), Integer.parseInt(args[2]));
+        getAllPBlockPlacementMetrics(args[0]);
     }
 }
