@@ -15,6 +15,7 @@ import com.xilinx.rapidwright.design.ConstraintGroup;
 import com.xilinx.rapidwright.design.Design;
 import com.xilinx.rapidwright.design.DesignTools;
 import com.xilinx.rapidwright.design.SiteInst;
+import com.xilinx.rapidwright.device.BEL;
 import com.xilinx.rapidwright.device.Device;
 import com.xilinx.rapidwright.device.Site;
 import com.xilinx.rapidwright.device.SiteTypeEnum;
@@ -28,14 +29,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.io.FileWriter;
+import java.io.IOException;
 
 public class PlacementMetricExtractor {
 
     private static HashSet<String> stopElements;
     private static HashSet<String> lutElements;
     private static HashSet<String> regElements;
+    private static HashSet<UtilizationType> mainTypes;
     static {
         stopElements = new HashSet<String>();
         // CONFIG
@@ -74,15 +77,21 @@ public class PlacementMetricExtractor {
         lutElements = new HashSet<String>();
         regElements = new HashSet<String>();
 
-        for (String letter : Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H")) {
-            regElements.add(letter +"FF");
-            regElements.add(letter +"FF2");
-            for (String size : Arrays.asList("5", "6")) {
-                lutElements.add(letter + size + "LUT");
-            }
-        }
+        mainTypes = new HashSet<UtilizationType>(
+            Arrays.asList(
+                UtilizationType.CLBS,
+                UtilizationType.CLBLS,
+                UtilizationType.CLBMS,
+                UtilizationType.CLB_REGS,
+                UtilizationType.CLB_LUTS,
+                UtilizationType.DSPS,
+                UtilizationType.RAMB36S_FIFOS,
+                UtilizationType.RAMB18S,
+                UtilizationType.CARRY8S,
+                UtilizationType.URAMS
+            )
+        );
     }
-
 
     public static boolean isBELAReg(String elementName) {
         return regElements.contains(elementName);
@@ -100,18 +109,112 @@ public class PlacementMetricExtractor {
         map.put(ut, val);
     }
 
-    public static Map<UtilizationType, Integer> calculateUtilization(Design d, PBlock pblock) {
-        Set<Site> sites = pblock.getAllSites(null);
-        List<SiteInst> siteInsts = d.getSiteInsts().stream().filter(s -> sites.contains(s.getSite()))
-                .collect(Collectors.toList());
-        // System.out.println(sites);
-        for (SiteInst si : siteInsts) {
-            if (si.getCells().size() == 0)
-                System.out.println("SiteInst: " + si + "; Cell #: " + si.getCells().size());
+    private static Map<UtilizationType, Integer> calculateTotalResource(Design d, Set<Site> sites) {
+        Map<UtilizationType, Integer> map = new HashMap<UtilizationType, Integer>();
+        for (UtilizationType ut : UtilizationType.values()) {
+            map.put(ut, 0);
         }
-        return calculateUtilization(siteInsts);
-    }
 
+        for (Site s : sites) {
+            SiteTypeEnum ste = s.getSiteTypeEnum();
+            // SiteInst si = d.getSiteInstFromSite(s);
+            if (Utils.isSLICE(ste)) {    // done
+                incrementUtilType(map, UtilizationType.CLBS);
+                if (ste == SiteTypeEnum.SLICEL) {
+                    // corresponding TCL: get_sites -of_objects [get_pblocks CR_X0Y12_To_CR_X3Y15] -filter { IS_USED == "TRUE" && SITE_TYPE == "SLICEL" }.
+                    // ? Vivado failing to include one column (e.g., as tall as the height of a clock region in Alveo U250) of SLICELs beside the laguna column, reason unknown yet -- for example, `get_pblocks -of_objects [get_sites SLICE_X112Y741]` wouldn't show "CR_X0Y12_To_CR_X3Y15", which was created by "create_pblock CR_X0Y12_To_CR_X3Y15; resize_pblock CR_X0Y12_To_CR_X3Y15 -add CLOCKREGION_X0Y12:CLOCKREGION_X3Y15"
+                        // ! Partially solved: https://github.com/Xilinx/RapidWright/issues/989
+                    incrementUtilType(map, UtilizationType.CLBLS);
+                    // System.out.println("mark_objects [get_sites " + si.getSite() + "]"); // debug
+                } else if (ste == SiteTypeEnum.SLICEM) {
+                    incrementUtilType(map, UtilizationType.CLBMS);
+                    // corresponding TCL: get_sites -of_objects [get_pblocks CR_X0Y12_To_CR_X3Y15] -filter { IS_USED == "TRUE" && SITE_TYPE == "SLICEM" }
+                }
+            } else if (Utils.isDSP(ste)) {
+                incrementUtilType(map, UtilizationType.DSPS);
+            } else if (Utils.isBRAM(ste)) {
+                if (ste == SiteTypeEnum.RAMBFIFO36) {
+                    incrementUtilType(map, UtilizationType.RAMB36S_FIFOS);
+                } else if (ste == SiteTypeEnum.RAMB181 || ste == SiteTypeEnum.RAMBFIFO18) {
+                    incrementUtilType(map, UtilizationType.RAMB18S);
+                }
+            } else if (Utils.isURAM(ste)) {
+                incrementUtilType(map, UtilizationType.URAMS);
+            }
+            for (BEL b : s.getBELs()) {
+                /* As in UtilizationType:
+                CLB_LUTS("CLB LUTs"),
+                LUTS_AS_LOGIC("LUTs as Logic"),
+                LUTS_AS_MEMORY("LUTs as Memory"),
+                CLB_REGS("CLB Regs"),
+                REGS_AS_FFS("Regs as FF"),  // the same as CLB_REGS
+                REGS_AS_LATCHES("Regs as Latch"),
+                CARRY8S("CARRY8s"),
+                //F7_MUXES("F7 Muxes"),
+                //F8_MUXES("F8 Muxes"),
+                //F9_MUXES("F9 Muxes"),
+                CLBS("CLBs"),
+                CLBLS("CLBLs"),
+                CLBMS("CLBMs"),
+                //LUT_FF_PAIRS("Lut/FF Pairs"),
+                RAMB36S_FIFOS("RAMB36s/FIFOs"),
+                RAMB18S("RAMB18s"),
+                URAMS("URAMs"),
+                DSPS("DSPs");
+                */
+                if (b.getName() == null) {
+                    // e.g., Alveo U250, DSP48E2_{X28|X29} cell: <LOCKED>(BEL: (unplaced)) -> c.getBELName() == null -> exception
+                    // System.out.println("null Name! site: " + si.getName() + " cell: " + c); // debug
+                    continue;
+                }
+                if (isBELAReg(b.getName())) {
+                    incrementUtilType(map, UtilizationType.CLB_REGS);
+                    incrementUtilType(map, UtilizationType.REGS_AS_FFS);
+                } else if (b.getName().contains("CARRY8")) {    // instead of CARRY because there are many other names starting with CARRY, e.g., CARRYININV, CARRYIN{SEL0}, CARRYOUT0, CARRYCASCIN, CARRYCASCOUT, ...
+                    try {
+                        FileWriter writer = new FileWriter("carry.log", true);
+                        writer.write(b.getName() + "\n");
+                        writer.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    incrementUtilType(map, UtilizationType.CARRY8S);
+                }
+
+            }
+            for (char letter : LUTTools.lutLetters) {
+                BEL b5 = s.getBEL(letter + "5LUT");
+                BEL b6 = s.getBEL(letter + "6LUT");
+                if (b5 != null || b6 != null) {
+                    incrementUtilType(map, UtilizationType.CLB_LUTS);
+                    // TODO: LUTRAM not considered yet. (LUTS_AS_MEMORY and LUTS_AS_LOGIC)
+                }
+            }
+            /*
+            // Haven't fixed the following code yet, but LUTS_AS_LOGIC and LUTS_AS_MEMORY are too detailed for the current consideration.
+            for (char letter : LUTTools.lutLetters) {
+                Cell c5 = si.getCell(letter +"5LUT");
+                Cell c6 = si.getCell(letter +"6LUT");
+                if (c5 != null && c5.isRoutethru()) {
+                    c5 = null;
+                } else if (c6 != null && c6.isRoutethru()) {
+                    c6 = null;
+                }
+                if (c5 != null || c6 != null) {
+                    incrementUtilType(map, UtilizationType.CLB_LUTS);
+
+                    if (isCellLutMemory(c5) || isCellLutMemory(c6)) {
+                        incrementUtilType(map, UtilizationType.LUTS_AS_MEMORY);
+                    } else {
+                        incrementUtilType(map, UtilizationType.LUTS_AS_LOGIC);
+                    }
+                }
+            }
+            */
+        }
+
+        return map;
+    }
 
     // For an Alveo U250 design, if we use `show_objects [get_pblocks <right half slrs like CR_X4Y12_To_CR_X7Y15>]`, and see the utilization in gui,
     // we can see that gui statistics is smaller than the following calculation, this is because some
@@ -155,7 +258,7 @@ public class PlacementMetricExtractor {
                 LUTS_AS_LOGIC("LUTs as Logic"),
                 LUTS_AS_MEMORY("LUTs as Memory"),
                 CLB_REGS("CLB Regs"),
-                REGS_AS_FFS("Regs as FF"),
+                REGS_AS_FFS("Regs as FF"),  // the same as CLB_REGS
                 REGS_AS_LATCHES("Regs as Latch"),
                 CARRY8S("CARRY8s"),
                 //F7_MUXES("F7 Muxes"),
@@ -178,7 +281,7 @@ public class PlacementMetricExtractor {
                 if (isBELAReg(c.getBELName())) {
                     incrementUtilType(map, UtilizationType.CLB_REGS);
                     incrementUtilType(map, UtilizationType.REGS_AS_FFS);
-                } else if (c.getBELName().contains("CARRY")) {
+                } else if (c.getBELName().contains("CARRY8")) {
                     incrementUtilType(map, UtilizationType.CARRY8S);
                 }
 
@@ -278,12 +381,19 @@ public class PlacementMetricExtractor {
         assert design != null : "Design is null";
         assert device != null : "Device is null";
         Map<String, PBlock> pblockMap = getNameToPBlocksFromXDC(design);
+
         for (String pblockName : pblockMap.keySet()) {
             PBlock pblock = pblockMap.get(pblockName);
-            Map<UtilizationType, Integer> utilizationMap = calculateUtilization(design, pblock);    // or DesignTools.calculateUtilization(design, pblock);
-            System.out.println("PBlock: " + pblockName + "; Utilization: " + utilizationMap);
+            Set<Site> sites = pblock.getAllSites(null);
+            Set<SiteInst> siteInsts = design.getSiteInsts().stream().filter(s -> sites.contains(s.getSite()))
+            .collect(Collectors.toSet());
+            Map<UtilizationType, Integer> utilMap = calculateUtilization(siteInsts);    // modified from DesignTools.calculateUtilization(design, pblock);
+            Map<UtilizationType, Integer> totalMap = calculateTotalResource(design, sites);
+            System.out.println("PBlock: " + pblockName + "; Utilization: " + utilMap);
+            System.out.println("PBlock: " + pblockName + "; Total: " + totalMap);
             // break;
         }
+        // TODO: determine the pblock indexing format and the result map format
         return;
     }
 
